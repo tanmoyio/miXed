@@ -36,3 +36,50 @@ for i in range(5):
     loss.backward()
     optim.step()
 ```
+
+### Difference between single precision vs mixed-precision training loop
+
+<table>
+<tr>
+<td>
+
+  ```python3
+  model = Model().to('cuda')
+criterion = BCELoss()
+
+model.train()
+for i in range(5):
+  for id, mask, label in loader:
+    optim.zero_grad()
+    o = model(id,mask)
+    loss=criterion(o, label)
+    loss.backward()
+    optim.step()
+  ```
+</td>
+<td>
+
+  ```python3
+model = Model().to('cuda')
+criterion = BCELoss()
+
+model.train()
+for i in range(5):
+  for id, mask, label in loader:
+    optim.zero_grad()
+    o = model(id,mask)
+    loss=criterion(o, label)
+    loss.backward()
+    optim.step()
+  ```
+</td>
+<td>
+  Variables defined with <code>def</code> cannot be changed once defined. This is similar to <code>readonly</code> or <code>const</code> in C# or <code>final</code> in Java. Most variables in Nemerle aren't explicitly typed like this.
+</td>
+</tr>
+</table>
+
+
+
+
+
