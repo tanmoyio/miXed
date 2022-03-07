@@ -43,36 +43,57 @@ During weight updates, reductions like loss functions, softmax, norms etc.
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
 
 ```python3
+import time
 import torch
+import datasets
 from transformers import AutoModel, AutoTokenizer
+from torch.utils.data import Dataset, DataLoader
+from torch.cuda.amp import GradScaler, autocast
 
-# dataloader = 
+class ModelDataset(Dataset):
+    def __init__(self, data):
+        self.data = data
+        self.tokenizer = AutoTokenizer.from_pretrained("google/bert_uncased_L-12_H-768_A-12")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        o = self.tokenizer(
+                self.data[idx]['text'], 
+                max_length=512, 
+                padding='max_length', 
+                truncation=True, 
+                return_tensors='pt'
+            )
+        label = torch.tensor([self.data[idx]['label']]).type(torch.float32)
+        return o['input_ids'][0], o['attention_mask'][0], label
 
 class ClassificationModel(torch.nn.Module):
-  def __init__(self):
-    super(ClassificationModel, self).__init__()
-    self.bert = AutoModel.from_pretrained('bert-base-uncased') 
-    self.dropout = torch.nn.Dropout(0.1)
-    self.fc = torch.nn.Linear(512,1)
-    self.sigmoid = torch.nn.Sigmoid()
-    
-  def forward(self, sent_id, mask): 
-    _, o = self.bert(sent_id, mask)[0]
-    o = self.dropout(o)
-    o = self.fc(o)
-    return self.sigmoid(o)
-    
-model = ClassificationModel().to('cuda')
-criterion = torch.loss.BCELoss()
-optim = torch.optim.AdamW(model.parameters(), lr=2e-5)
+    def __init__(self):
+        super(ClassificationModel, self).__init__()
+        self.bert = AutoModel.from_pretrained('google/bert_uncased_L-12_H-768_A-12') 
+        self.dropout = torch.nn.Dropout(0.1)
+        self.fc = torch.nn.Linear(768,1)
+        self.sigmoid = torch.nn.Sigmoid()
 
-model.train()
-for i in range(5):
-  for id, mask, label in loader:
-    optim.zero_grad()
-    loss = criterion(model(id,mask), label)
-    loss.backward()
-    optim.step()
+    def forward(self, ids, mask): 
+        o = self.bert(ids, mask)['last_hidden_state'][:,0,:]
+        o = self.dropout(o)
+        o = self.fc(o)
+        return self.sigmoid(o)
+    
+# prepare dataset    
+tweet_dataset = datasets.load_dataset('tweet_eval','offensive')
+custom_dataset = ModelDataset(tweet_dataset['train'])
+ 
+# change the batch_size to 8 if you are using same experimental setup
+loader = DataLoader(custom_dataset, shuffle=True, batch_size=16)
+
+# load model, loss, and optimizer
+model = ClassificationModel().to('cuda')
+criterion = torch.nn.functional.binary_cross_entropy_with_logits
+optim = torch.optim.AdamW(model.parameters(), lr=2e-5)
 ```
 
 ### Difference between single precision vs mixed-precision training loop
@@ -82,42 +103,58 @@ for i in range(5):
 <td>
 
   ```python3
-  model = Model().to('cuda')
-criterion = BCELoss()
-
+# without mixed precision
+t0 = time.time()
 model.train()
+  
 for i in range(5):
-  for id, mask, label in loader:
-    optim.zero_grad()
-    o = model(id,mask)
-    loss=criterion(o, label)
-    loss.backward()
-    optim.step()
+  
+    avg_loss = 0.0
+    for batch in loader:
+  
+        ids, mask, label = batch
+        ids = ids.to('cuda')
+        mask = mask.to('cuda')
+        label = label.to('cuda')
+        optim.zero_grad()
+        loss = criterion(model(ids, mask), label)
+        loss.backward()
+        optim.step()
+        avg_loss += loss
+    print(loss/len(loader))
+  
+print(time.time()-t0)
   ```
 </td>
 <td>
 
   ```python3
-model = Model().to('cuda')
-criterion = BCELoss()
-
+# with mixed precision
+scaler = GradScaler()
+t0 = time.time()
 model.train()
 for i in range(5):
-  for id, mask, label in loader:
-    optim.zero_grad()
-    o = model(id,mask)
-    loss=criterion(o, label)
-    loss.backward()
-    optim.step()
+    avg_loss = 0.0
+    for batch in loader:
+        ids, mask, label = batch
+        ids = ids.to('cuda')
+        mask = mask.to('cuda')
+        label = label.to('cuda')
+        optim.zero_grad()
+        with autocast():
+            loss = criterion(model(ids, mask), label)
+
+        scaler.scale(loss).backward()
+        scaler.step(optim)
+        scaler.update()
+        avg_loss += loss
+    print(loss/len(loader))
+print(time.time() - t0)
   ```
-</td>
-<td>
-  Variables defined with <code>def</code> cannot be changed once defined. This is similar to <code>readonly</code> or <code>const</code> in C# or <code>final</code> in Java. Most variables in Nemerle aren't explicitly typed like this.
 </td>
 </tr>
 </table>
 
-
-
-
-
+I have done the experiment in 1xTesla T4
+Training time for single precision -> 5149 seconds
+Training time for mixed precision -> 2163 seconds
