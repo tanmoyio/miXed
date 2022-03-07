@@ -23,6 +23,17 @@ torch.ones((65536,), device='cuda', dtype=torch.float32).sum()
 >>> tensor(65536., device='cuda:0')
 ```
 
+Also weight update requires high precision, FP16 can't capture. Lets try `1+0.0001`
+```python3 
+# half precision
+torch.tensor(1, device='cuda', dtype=torch.half) + 0.0001
+>>> tensor(1., device='cuda:0', dtype=torch.float16)
+
+# single precision
+torch.tensor(1, device='cuda') + 0.0001
+>>> tensor(1.0001, device='cuda:0')
+```
+
 
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
 
