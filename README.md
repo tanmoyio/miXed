@@ -2,6 +2,8 @@
 
 Automatic mixed precision training and inference on GPU. 
 
+<img src="https://imgur.com/xIPuhut.png" height=200>
+
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
 
 ```python3
