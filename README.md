@@ -33,6 +33,11 @@ torch.tensor(1, device='cuda', dtype=torch.half) + 0.0001
 torch.tensor(1, device='cuda') + 0.0001
 >>> tensor(1.0001, device='cuda:0')
 ```
+So when to use half precision:
+In case of matmul, convolution operations, tensor add, pointwise tensor mul.
+
+When to use single precision:
+During weight updates, reductions like loss functions, softmax, norms etc.
 
 
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
