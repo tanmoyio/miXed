@@ -2,14 +2,22 @@
 
 Automatic mixed precision training and inference on GPU. 
 
+As the deep learning models like transformers getting larger and larger, its very difficult to train and perform inference on those models. You might feel the urge of training large language models but whenever you try to run that in your GPU, you might face cuda memory error. Training with `batch_size=1` is also not a good solution. So there is need of larger VRAM, but with AMP(automatic mixed precision) you can optimize the gpu memory usage by 2x, you can increase the `batch_size` which will provide you extra throughput. But the question is how it works, what are the principles behind AMP.
+
+Whenever we create some deep learning model, the datatypes are usually in Float32, but in AMP its a extension to pytorch which tries to optimize the vram by using mixed precision (Float32 and Float16 both). But why both? Its intuitive that using float16 alone will optimize the entire process. But why do we need to use mixed precision. Before answering that lets see the structure of these `FP16` and `FP32` datatypes.
+
+
 <img src="https://imgur.com/xIPuhut.png" height=200>
 
+#### Advantages of using FP16 over FP32
 |                        | Range FP32                  | Range FP16               |
 |------------------------|-----------------------------|--------------------------|
 |  Range                 | `1.4x10^-45` to `3.4x10^38` | `5.96x10^-8` to `655504` |
 |  Compute throughput    | 1x                          | 8x (Depends on the gpu)  |
 |  Memory throughput     | 1x                          | 2x                       |
 |  Memory stroage        | 1x                          | 2x                       |
+
+#### Some drawbacks of `FP16`
 
 Due to less precision `FP16` cannot capture small accumulations, but `FP32` can.
 Example:
@@ -33,14 +41,20 @@ torch.tensor(1, device='cuda', dtype=torch.half) + 0.0001
 torch.tensor(1, device='cuda') + 0.0001
 >>> tensor(1.0001, device='cuda:0')
 ```
-So when to use half precision:
-In case of matmul, convolution operations, tensor add, pointwise tensor mul.
+These are the cases where `FP32` performs better than `FP16`
 
-When to use single precision:
-During weight updates, reductions like loss functions, softmax, norms etc.
+Usecases of `FP16`: In case of matmul, convolution operations, tensor add, pointwise tensor mul.
+
+Usecases of `FP32`:During weight updates, reductions like loss functions, softmax, norms etc.
+
+### Gradient scalling
+This is the most important thing about AMP. Most of the forward propagation task will run on `FP16` mode other than some activation functions. But when you get the loss of a certain batch the backpropagation starts. As I have shown in the `1+0.0001` example `FP16` can't capture small accumulations so as we go up the network calculating the gradients, those gradients becomes very small and the model stops training. To mitigate this there is a feature named `gradient scalling` which scales the loss so with the chain rule it flows to the gradients of all the layers which tries to uplift the gradients in certain range. In pytorch this will be handled by `GradScaler()`. After it computes the grads, the weights update will take place in `FP32` mode.
 
 
-Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
+### Lets train a model with both single precision and AMP
+Before start writing the script, it has been tested that AMP doesn't decrease the accuracy of the model compared to a model trained on single precision. In this demonstration we would only focus on the execution time, not the model quality. 
+
+Model we will be using is `google/bert_uncased_L-12_H-768_A-12` from 🤗 and we are going to add a linear layer on top of the `[CLS]` output vector for classification.
 
 ```python3
 import time
@@ -51,6 +65,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.cuda.amp import GradScaler, autocast
 
 class ModelDataset(Dataset):
+    """Custom dataset"""
     def __init__(self, data):
         self.data = data
         self.tokenizer = AutoTokenizer.from_pretrained("google/bert_uncased_L-12_H-768_A-12")
@@ -155,6 +170,8 @@ print(time.time() - t0)
 </tr>
 </table>
 
-I have done the experiment in 1xTesla T4
-Training time for single precision -> 5149 seconds
-Training time for mixed precision -> 2163 seconds
+I have done the experiment in `1xTesla T4`
+
+Training time for single precision: `5149 seconds`
+
+Training time for mixed precision: `2163 seconds`
