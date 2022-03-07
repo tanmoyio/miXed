@@ -175,3 +175,5 @@ I have done the experiment in `1xTesla T4`
 Training time for single precision: `5149 seconds`
 
 Training time for mixed precision: `2163 seconds`
+
+More info will be added soon
