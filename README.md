@@ -4,9 +4,12 @@ Automatic mixed precision training and inference on GPU.
 
 <img src="https://imgur.com/xIPuhut.png" height=200>
 
-| Range FP32                  | Range FP16               |
-|-----------------------------|--------------------------|
-| `1.4x10^-45` to `3.4x10^38` | `5.96x10^-8` to `655504` |
+|                        | Range FP32                  | Range FP16               |
+|------------------------|-----------------------------|--------------------------|
+|  Range                 | `1.4x10^-45` to `3.4x10^38` | `5.96x10^-8` to `655504` |
+|  Compute throughput    | 1x                          | 8x (Depends on the gpu)  |
+|  Memory throughput     | 1x                          | 2x                       |
+|  Memory stroage        | 1x                          | 2x                       |
 
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
 
