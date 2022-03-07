@@ -11,6 +11,19 @@ Automatic mixed precision training and inference on GPU.
 |  Memory throughput     | 1x                          | 2x                       |
 |  Memory stroage        | 1x                          | 2x                       |
 
+Due to less precision `FP16` cannot capture small accumulations, but `FP32` can.
+Example:
+```python3
+# half precision
+torch.ones((65536,), device='cuda', dtype=torch.half).sum()
+>>> tensor(inf, device='cuda:0', dtype=torch.float16) 
+
+# single precision
+torch.ones((65536,), device='cuda', dtype=torch.float32).sum()
+>>> tensor(65536., device='cuda:0')
+```
+
+
 Before Starting going through this documentation I am expecting that you have some level of idea regarding deep learning model training and inference on `torch`. Even if you don't have any knowledge regarding that here I have presented a very basic 🤗's `transformers` based classification model with custom training loop in `torch`.
 
 ```python3
